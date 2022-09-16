@@ -6,7 +6,9 @@ import discord
 from discord.ext import commands
 import youtube
 
-token = ''
+f = open("key.txt", "r")
+token = f.readline()
+f.close()
 
 description = '''A cool bot created by coldagent.'''
 
