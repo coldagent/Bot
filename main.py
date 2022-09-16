@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 import youtube
 
-token = 'ODk4NDExMTE0MDA0NjIzMzcw.GiPi81.SArEVpRD6eHlMKs6LZL_ZZV5uSO9YQ9g-fjAOo'
+token = ''
 
 description = '''A cool bot created by coldagent.'''
 
