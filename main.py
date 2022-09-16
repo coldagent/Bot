@@ -83,16 +83,7 @@ async def player_helper(ctx: commands.Context, first=False):
         print(str(e))
 
 def delete_top():
-    filename = "songs/" + song_queue[0].title + ".mp3"
-    filename = filename.replace(" ", "_")
-    filename = filename.replace("(", "")
-    filename = filename.replace(")", "")
-    filename = filename.replace("#", "")
-    filename = filename.replace("“", "")
-    filename = filename.replace("”", "")
-    filename = filename.replace("*", "")
-    filename = filename.replace(":", "")
-    filename = filename.replace("/", "")
+    filename = song_queue[0].filename
     song_queue.pop(0)
     if (os.path.exists(filename)):
         os.remove(filename)

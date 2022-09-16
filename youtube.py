@@ -33,11 +33,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
     }
 
     ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
-    def __init__(self, source, *, data, volume=0.5):
+    def __init__(self, source, *, data, filename, volume=0.5):
         super().__init__(source, volume)
-
         self.data = data
-
+        self.filename = filename
         self.title = data.get('title')
         self.url = data.get('url')
 
@@ -49,16 +48,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
         if 'entries' in data:
             # take first item from a playlist
             data = data['entries'][0]
-
-        filename: str = "songs/" + data['title'] + ".mp3"
-        filename = filename.replace(" ", "_")
-        filename = filename.replace("(", "")
-        filename = filename.replace(")", "")
-        filename = filename.replace("#", "")
-        filename = filename.replace("“", "")
-        filename = filename.replace("”", "")
-        filename = filename.replace("*", "")
-        filename = filename.replace(":", "")
-        filename = filename.replace("/", "")
-        return cls(source=discord.FFmpegPCMAudio(filename), data=data)
+        
+        filename = data['requested_downloads'][0]['_filename']
+        filename = filename.replace(".webm", ".mp3")
+        return cls(source=discord.FFmpegPCMAudio(filename), data=data, filename=filename)
 
