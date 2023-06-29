@@ -48,7 +48,7 @@ async def on_ready():
     print(f'Bot connected as {bot.user}')
 
 # Bot command: queue
-@bot.command()
+@bot.hybrid_command()
 async def queue(ctx: commands.Context):
     if len(song_queue) <= 1:
         await ctx.send("The queue is empty. Add some songs using the `play command.")
@@ -59,7 +59,7 @@ async def queue(ctx: commands.Context):
         await ctx.send(songs)
 
 # Bot command: play
-@bot.command()
+@bot.hybrid_command()
 async def play(ctx: commands.Context, url=""):
     if not ctx.author.voice or not ctx.author.voice.channel:
         await ctx.send("You are not connected to a voice channel.")
@@ -81,7 +81,7 @@ async def play(ctx: commands.Context, url=""):
     await play_music(ctx)
 
 # Bot command: skip
-@bot.command()
+@bot.hybrid_command()
 async def skip(ctx: commands.Context):
     voice_client: discord.VoiceClient = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice_client == None or not voice_client.is_playing():
@@ -91,7 +91,7 @@ async def skip(ctx: commands.Context):
     voice_client.stop()
 
 # Bot command: pause
-@bot.command()
+@bot.hybrid_command()
 async def pause(ctx: commands.Context):
     voice_client: discord.VoiceClient = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice_client == None or not voice_client.is_playing():
@@ -100,6 +100,13 @@ async def pause(ctx: commands.Context):
     await ctx.send("**Pausing**")
     voice_client.pause()
 
+@bot.hybrid_command()
+async def sync(ctx: commands.Context):
+  if not ctx.author.id == 267094644452491264:
+    await ctx.send("You do not have access to this command.")
+    return
+  fmt = await bot.tree.sync()
+  await ctx.send(f"Sync'd {len(fmt)} commands to the current server")
 
 def get_token():
     token = ""
