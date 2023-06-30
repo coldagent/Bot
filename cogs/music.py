@@ -65,6 +65,9 @@ class Music(commands.Cog):
         
         if url != "":
             # Download the song using yt_dlp
+            if "playlist" in url:
+                    await ctx.send("No support for playlists")
+                    return
             ydl_opts = {'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192',}],}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
