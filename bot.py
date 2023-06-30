@@ -15,7 +15,7 @@ song_queue = []
 # Function to play music
 async def play_music(ctx: commands.Context):
     if len(song_queue) == 0:
-        await ctx.send("The queue is empty. Add some songs using the `play command.")
+        await ctx.send("The queue is empty. Add some songs using the **`play** command.")
         return
     
     # Connect to voice channel
