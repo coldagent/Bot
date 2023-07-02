@@ -1,9 +1,13 @@
 import discord
 import os
 from discord.ext import commands
+import re
 
 # Create bot instance and set command prefix
 bot = commands.Bot(command_prefix='`', intents=discord.Intents.all())
+my_id = 267094644452491264
+bot_id = 898411114004623370
+your_mom = []
 
 #Setup Function
 @bot.event
@@ -13,17 +17,50 @@ async def setup_hook():
         await bot.load_extension(f'cogs.{filename[:-3]}')
         print(f"Loaded Cog: {filename[:-3]}")
 
+def add_your_mom(guild_id):
+  global your_mom
+  count = 1
+  found = False
+  for line in your_mom:
+    if int(line[0]) == guild_id:
+      found = True
+      count = int(line[1]) + 1
+      line[1] = str(count)
+      break
+  if not found:
+    your_mom.append([str(guild_id), str(count)])
+  with open("your_mom.csv", mode="w") as file:
+    for line in your_mom:
+      file.write(line[0] + "," + line[1] + "\n")
+  return count
+
 # Bot event: on ready
 @bot.event
 async def on_ready():
-    print(f'Bot connected as {bot.user}')
+  global your_mom
+  print(f'Bot connected as {bot.user}')
+  with open("your_mom.csv", mode="r") as file:
+    for line in file:
+      items = line.split(",")
+      your_mom.append(items)
+
+@bot.event
+async def on_message(message: discord.Message):
+  if message.author.id == bot_id:
+    return
+  await bot.process_commands(message)
+  m = re.search("(?:yo|your|ur)\s*(?:mama|mother|mum|mom)", message.content, re.IGNORECASE)
+  if not m == None:
+    count = add_your_mom(message.guild.id)
+    await message.channel.send(f"Your mom counter: {count}")
+
 
 # Sync Bot commands
 @bot.hybrid_command()
 async def sync(ctx: commands.Context):
   """Syncs Discord UI with bot slash commands"""
   
-  if not ctx.author.id == 267094644452491264:
+  if not ctx.author.id == my_id:
     await ctx.send("You do not have access to this command.")
     return
   fmt = await bot.tree.sync()
@@ -31,10 +68,10 @@ async def sync(ctx: commands.Context):
 
 # Get bot token
 def get_token():
-    token = ""
-    with open('token.txt', mode='r') as file:
-        token = file.read()
-    return token
+  token = ""
+  with open('token.txt', mode='r') as file:
+    token = file.read()
+  return token
 
 # Run the bot
 bot.run(token=get_token())
