@@ -49,7 +49,7 @@ async def on_message(message: discord.Message):
   if message.author.id == bot_id:
     return
   await bot.process_commands(message)
-  m = re.search("(?:yo|your|ur|tu)\s*(?:mama|mother|mum|mom|madre)", message.content, re.IGNORECASE)
+  m = re.search("(?:yo|your|ur|tu|ya)\s*(?:mama|mother|mum|mom|madre|mommy)", message.content, re.IGNORECASE)
   if not m == None:
     count = add_your_mom(message.guild.id)
     await message.channel.send(f"Your mom counter: {count}")
