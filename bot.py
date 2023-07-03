@@ -1,13 +1,15 @@
 import discord
 import os
-from discord.ext import commands
 import re
+from discord.ext import commands
+from better_profanity import profanity
 
 # Create bot instance and set command prefix
-bot = commands.Bot(command_prefix='`', intents=discord.Intents.all())
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 my_id = 267094644452491264
 bot_id = 898411114004623370
 your_mom = []
+swears = []
 
 #Setup Function
 @bot.event
@@ -34,15 +36,37 @@ def add_your_mom(guild_id):
       file.write(line[0] + "," + line[1] + "\n")
   return count
 
+def add_swears(guild_id):
+  global swears
+  count = 1
+  found = False
+  for line in swears:
+    if int(line[0]) == guild_id:
+      found = True
+      count = int(line[1]) + 1
+      line[1] = str(count)
+      break
+  if not found:
+    swears.append([str(guild_id), str(count)])
+  with open("swears.csv", mode="w") as file:
+    for line in swears:
+      file.write(line[0] + "," + line[1] + "\n")
+  return count
+
 # Bot event: on ready
 @bot.event
 async def on_ready():
   global your_mom
+  global swears
   print(f'Bot connected as {bot.user}')
   with open("your_mom.csv", mode="r") as file:
     for line in file:
       items = line.split(",")
       your_mom.append(items)
+  with open("swears.csv", mode="r") as file:
+    for line in file:
+      items = line.split(",")
+      swears.append(items)
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -53,7 +77,9 @@ async def on_message(message: discord.Message):
   if not m == None:
     count = add_your_mom(message.guild.id)
     await message.channel.send(f"Your mom counter: {count}")
-
+  if profanity.contains_profanity(message.content):
+    count = add_swears(message.guild.id)
+    await message.channel.send(f"Swear counter: {count}")
 
 # Sync Bot commands
 @bot.hybrid_command()
