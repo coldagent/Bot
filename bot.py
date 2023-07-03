@@ -5,7 +5,7 @@ from discord.ext import commands
 from better_profanity import profanity
 
 # Create bot instance and set command prefix
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+bot = commands.Bot(command_prefix='`', intents=discord.Intents.all())
 my_id = 267094644452491264
 bot_id = 898411114004623370
 your_mom = []
