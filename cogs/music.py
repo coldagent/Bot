@@ -75,6 +75,7 @@ class Music(commands.Cog):
                     self.song_queue.append(info)
                     await ctx.send(f'**Song queued**: {info["fulltitle"]}')
                 else:
+                    await ctx.send("***Searching...***")
                     info = ydl.extract_info(f"ytsearch:{arg}", download=False)['entries'][0]
                     self.song_queue.append(info)
                     await ctx.send(f'**Song queued**: {info["fulltitle"]}')
