@@ -73,12 +73,14 @@ class Music(commands.Cog):
                 if "www.youtube.com" in arg:
                     info = ydl.extract_info(arg, download=False)
                     self.song_queue.append(info)
-                    await ctx.send(f'**Song queued**: {info["fulltitle"]}')
+                    if len(self.song_queue) >= 1:
+                        await ctx.send(f'**Song queued**: {info["fulltitle"]}')
                 else:
                     await ctx.send("***Searching...***")
                     info = ydl.extract_info(f"ytsearch:{arg}", download=False)['entries'][0]
                     self.song_queue.append(info)
-                    await ctx.send(f'**Song queued**: {info["fulltitle"]}')
+                    if len(self.song_queue) >= 1:
+                        await ctx.send(f'**Song queued**: {info["fulltitle"]}')
         elif discord.utils.get(self.bot.voice_clients, guild=ctx.guild).is_paused():
             await ctx.send("**Resuming**")
             discord.utils.get(self.bot.voice_clients, guild=ctx.guild).resume()
