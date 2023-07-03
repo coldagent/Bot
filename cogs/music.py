@@ -56,23 +56,28 @@ class Music(commands.Cog):
 
     # Bot command: play
     @commands.hybrid_command()
-    async def play(self, ctx: commands.Context, url=""):
-        """Plays the given Youtube URL or resumes if paused"""
+    async def play(self, ctx: commands.Context, arg=""):
+        """Plays the given Youtube URL, searches Youtube for audio, or resumes if paused"""
 
         if not ctx.author.voice or not ctx.author.voice.channel:
             await ctx.send("You are not connected to a voice channel.")
             return
         
-        if url != "":
+        if arg != "":
             # Download the song using yt_dlp
-            if "playlist" in url:
+            if "playlist" in arg:
                     await ctx.send("No support for playlists")
                     return
             ydl_opts = {'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192',}],}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                self.song_queue.append(info)
-                await ctx.send(f'**Song queued**: {info["fulltitle"]}')
+                if "www.youtube.com" in arg:
+                    info = ydl.extract_info(arg, download=False)
+                    self.song_queue.append(info)
+                    await ctx.send(f'**Song queued**: {info["fulltitle"]}')
+                else:
+                    info = ydl.extract_info(f"ytsearch:{arg}", download=False)['entries'][0]
+                    self.song_queue.append(info)
+                    await ctx.send(f'**Song queued**: {info["fulltitle"]}')
         elif discord.utils.get(self.bot.voice_clients, guild=ctx.guild).is_paused():
             await ctx.send("**Resuming**")
             discord.utils.get(self.bot.voice_clients, guild=ctx.guild).resume()
