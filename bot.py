@@ -69,7 +69,7 @@ async def sync(ctx: commands.Context):
 # Get bot token
 def get_token():
   token = ""
-  with open('token.txt', mode='r') as file:
+  with open('devtoken.txt', mode='r') as file:
     token = file.read()
   return token
 
