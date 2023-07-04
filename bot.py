@@ -31,7 +31,7 @@ def add_your_mom(guild_id):
       break
   if not found:
     your_mom.append([str(guild_id), str(count)])
-  with open("files/your_mom.csv", mode="w") as file:
+  with open("./files/your_mom.csv", mode="w") as file:
     for line in your_mom:
       file.write(line[0] + "," + line[1] + "\n")
   return count
@@ -48,7 +48,7 @@ def add_swears(guild_id):
       break
   if not found:
     swears.append([str(guild_id), str(count)])
-  with open("files/swears.csv", mode="w") as file:
+  with open("./files/swears.csv", mode="w") as file:
     for line in swears:
       file.write(line[0] + "," + line[1] + "\n")
   return count
@@ -59,11 +59,11 @@ async def on_ready():
   global your_mom
   global swears
   print(f'Bot connected as {bot.user}')
-  with open("files/your_mom.csv", mode="r") as file:
+  with open("./files/your_mom.csv", mode="r") as file:
     for line in file:
       items = line.split(",")
       your_mom.append(items)
-  with open("files/swears.csv", mode="r") as file:
+  with open("./files/swears.csv", mode="r") as file:
     for line in file:
       items = line.split(",")
       swears.append(items)
@@ -77,7 +77,7 @@ async def on_message(message: discord.Message):
   if not m == None:
     count = add_your_mom(message.guild.id)
     await message.channel.send(f"Your mom counter: {count}")
-  profanity.load_censor_words_from_file("files/bad_words.txt")
+  profanity.load_censor_words_from_file("./files/bad_words.txt")
   if profanity.contains_profanity(message.content):
     count = add_swears(message.guild.id)
     await message.channel.send(f"Swear counter: {count}")
@@ -96,7 +96,7 @@ async def sync(ctx: commands.Context):
 # Get bot token
 def get_token():
   token = ""
-  with open('files/token.txt', mode='r') as file:
+  with open('./files/token.txt', mode='r') as file:
     token = file.read()
   return token
 
