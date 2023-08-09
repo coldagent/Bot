@@ -1,3 +1,5 @@
+import asyncio
+import constants
 import discord
 import os
 import re
@@ -6,8 +8,6 @@ from better_profanity import profanity
 
 # Create bot instance and set command prefix
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
-my_id = 267094644452491264
-bot_id = 898411114004623370
 your_mom = []
 swears = []
 
@@ -31,7 +31,7 @@ def add_your_mom(guild_id):
       break
   if not found:
     your_mom.append([str(guild_id), str(count)])
-  with open("your_mom.csv", mode="w") as file:
+  with open("files/your_mom.csv", mode="w") as file:
     for line in your_mom:
       file.write(line[0] + "," + line[1] + "\n")
   return count
@@ -48,7 +48,7 @@ def add_swears(guild_id):
       break
   if not found:
     swears.append([str(guild_id), str(count)])
-  with open("swears.csv", mode="w") as file:
+  with open("files/swears.csv", mode="w") as file:
     for line in swears:
       file.write(line[0] + "," + line[1] + "\n")
   return count
@@ -59,18 +59,18 @@ async def on_ready():
   global your_mom
   global swears
   print(f'Bot connected as {bot.user}')
-  with open("your_mom.csv", mode="r") as file:
+  with open("files/your_mom.csv", mode="r") as file:
     for line in file:
       items = line.split(",")
       your_mom.append(items)
-  with open("swears.csv", mode="r") as file:
+  with open("files/swears.csv", mode="r") as file:
     for line in file:
       items = line.split(",")
       swears.append(items)
 
 @bot.event
 async def on_message(message: discord.Message):
-  if message.author.id == bot_id:
+  if message.author.id == constants.bot_id:
     return
   await bot.process_commands(message)
   m = re.search("(?:yo|your|ur|tu|ya)\s*(?:mama|mother|mum|mom|madre|mommy)", message.content, re.IGNORECASE)
@@ -81,12 +81,25 @@ async def on_message(message: discord.Message):
     count = add_swears(message.guild.id)
     await message.channel.send(f"Swear counter: {count}")
 
+@bot.event
+async def on_voice_state_update(member: discord.member.Member, before: discord.member.VoiceState, after: discord.member.VoiceState):
+  if before.channel is None and after.channel is not None:
+    if not discord.utils.get(bot.voice_clients, guild=member.guild) == None:
+      return
+    if member.id not in constants.intros:
+      return
+    voice_client = await after.channel.connect()
+    voice_client.play(discord.FFmpegPCMAudio(constants.intros[member.id]))
+    while voice_client.is_playing():
+        await asyncio.sleep(1)
+    await voice_client.disconnect()
+
 # Sync Bot commands
 @bot.hybrid_command()
 async def sync(ctx: commands.Context):
   """Syncs Discord UI with bot slash commands"""
   
-  if not ctx.author.id == my_id:
+  if not ctx.author.id == constants.my_id:
     await ctx.send("You do not have access to this command.")
     return
   fmt = await bot.tree.sync()
@@ -95,7 +108,7 @@ async def sync(ctx: commands.Context):
 # Get bot token
 def get_token():
   token = ""
-  with open('devtoken.txt', mode='r') as file:
+  with open('files/devtoken.txt', mode='r') as file:
     token = file.read()
   return token
 
