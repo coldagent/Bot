@@ -1,6 +1,7 @@
 .venv
 token.txt
 cogs/__pycache__
+__pycache__
 your_mom.csv
 devtoken.txt
 swears.csv
