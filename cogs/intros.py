@@ -13,7 +13,7 @@ class Intros(commands.Cog):
         with open("./files/intro_toggle.csv", mode="r") as file:
             for line in file:
                 items = line.split(",")
-                self.toggle[int(items[0])] = bool(items[1])
+                self.toggle[int(items[0])] = (True if items[1] == "True" else False)
         missing = False
         for id in constants.intros:
             if id not in self.toggle:
