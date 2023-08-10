@@ -30,7 +30,7 @@ class Intros(commands.Cog):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.member.Member, before: discord.member.VoiceState, after: discord.member.VoiceState):
         if before.channel is None and after.channel is not None:
-            if not discord.utils.get(self.bot.voice_clients, guild=member.guild) == None or member.id not in constants.intros:
+            if not discord.utils.get(self.bot.voice_clients, guild=member.guild) == None or member.id not in constants.intros or not self.toggle.get(member.id):
                 return
             voice_client = await after.channel.connect()
             voice_client.play(discord.FFmpegPCMAudio(constants.intros[member.id]))
