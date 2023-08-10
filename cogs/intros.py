@@ -46,8 +46,8 @@ class Intros(commands.Cog):
             await ctx.send("You do not have an intro. Ask Zach to set your intro up.")
             return
         self.toggle[id] = not self.toggle.get(id)
-        await ctx.send(f"Intro for {ctx.author.mention}: {'ON' if self.toggle[id] else 'OFF'}")
         self.rewrite_intro()
+        await ctx.send(f"Intro for {ctx.author.mention}: {'ON' if self.toggle.get(id) else 'OFF'}")
 
 async def setup(bot):
     await bot.add_cog(Intros(bot))
