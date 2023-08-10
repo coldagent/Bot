@@ -57,7 +57,6 @@ class Counter(commands.Cog):
   async def on_message(self, message: discord.Message):
     if message.author.id == constants.bot_id:
       return
-    await self.bot.process_commands(message)
     m = re.search("(?:yo|your|ur|tu|ya)\s*(?:mama|mother|mum|mom|madre|mommy)", message.content, re.IGNORECASE)
     if not m == None:
       count = self.add_your_mom(message.guild.id)
