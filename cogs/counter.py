@@ -25,7 +25,7 @@ class Counter(commands.Cog):
     count = 1
     found = False
     for line in self.your_mom:
-      if int(line[0]) == guild_id:
+      if len(line) == 2 and int(line[0]) == guild_id:
         found = True
         count = int(line[1]) + 1
         line[1] = str(count)
@@ -41,7 +41,7 @@ class Counter(commands.Cog):
     count = 1
     found = False
     for line in self.swears:
-      if int(line[0]) == guild_id:
+      if len(line) == 2 and int(line[0]) == guild_id:
         found = True
         count = int(line[1]) + 1
         line[1] = str(count)
