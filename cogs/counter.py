@@ -34,6 +34,8 @@ class Counter(commands.Cog):
       self.your_mom.append([str(guild_id), str(count)])
     with open("./files/your_mom.csv", mode="w") as file:
       for line in self.your_mom:
+        if not len(line) == 2:
+          continue
         file.write(line[0] + "," + line[1] + "\n")
     return count
 
@@ -50,6 +52,8 @@ class Counter(commands.Cog):
       self.swears.append([str(guild_id), str(count)])
     with open("./files/swears.csv", mode="w") as file:
       for line in self.swears:
+        if not len(line) == 2:
+          continue
         file.write(line[0] + "," + line[1] + "\n")
     return count
 
