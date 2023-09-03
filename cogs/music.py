@@ -81,6 +81,9 @@ class Music(commands.Cog):
                     self.song_queue.append(info)
                     if len(self.song_queue) > 1:
                         await ctx.send(f'**Song queued**: {info["fulltitle"]}')
+        elif discord.utils.get(self.bot.voice_clients, guild=ctx.guild) is None:
+            await ctx.send("Please enter a URL to play a song")
+            return
         elif discord.utils.get(self.bot.voice_clients, guild=ctx.guild).is_paused():
             await ctx.send("**Resuming**")
             discord.utils.get(self.bot.voice_clients, guild=ctx.guild).resume()
