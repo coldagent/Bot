@@ -76,7 +76,8 @@ class Counter(commands.Cog):
     if profanity.contains_profanity(message.content):
       self.add_swears(message.guild.id)
   
-  @commands.hybrid_command
+  # Bot command: counter
+  @commands.hybrid_command()
   async def counter(self, ctx: commands.Context, arg=""):
     arg = str.lower(arg)
     if arg == "mom":
