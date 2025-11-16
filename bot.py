@@ -36,7 +36,7 @@ async def sync(ctx: commands.Context):
 def get_token():
   token = ""
   with open('./files/token.txt', mode='r') as file:
-    token = file.read()
+    token = file.read().strip()
   return token
 
 # Run the bot
