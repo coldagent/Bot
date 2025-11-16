@@ -8,6 +8,7 @@ Notes:
 - The bot requires the `members` intent enabled and permission to view server members and roles.
 """
 
+import json
 import os
 import re
 from pathlib import Path
@@ -136,7 +137,7 @@ class ServerSaver(commands.Cog):
 		contains:
 		- Line 1: role name
 		- Line 2: color hex (e.g. #a1b2c3)
-		- Line 3: comma-separated permission names
+		- Line 3: permission dict in JSON format (e.g. {"permission_name": true/false, ...})
 
 		If a role with the same name already exists in the destination guild, it will
 		be updated (color & permissions). Otherwise the role will be created.
@@ -171,29 +172,39 @@ class ServerSaver(commands.Cog):
 						color_val = 0
 					colour = discord.Colour(color_val)
 
-					# build permissions
-					perms = discord.Permissions.none()
-					perm_names = [p for p in (perms_line.split(",") if perms_line else []) if p]
-					for pname in perm_names:
-						if hasattr(perms, pname):
-							setattr(perms, pname, True)
-						# ignore unknown permission names silently
-
-					# skip everyone role
+				# build permissions from dict format or integer value
+				perms = discord.Permissions.none()
+				if perms_line:
+					try:
+						# Try to parse as JSON dict first
+						perms_dict = json.loads(perms_line)
+						for pname, enabled in perms_dict.items():
+							if enabled and hasattr(perms, pname):
+								setattr(perms, pname, True)
+					except Exception:
+						# If not JSON, try to parse as integer permission value
+						try:
+							perm_int = int(perms_line)
+							perms = discord.Permissions(perm_int)
+						except (ValueError, TypeError):
+							# If all else fails, use no permissions
+							pass					# skip everyone role
 					if role_name == guild.default_role.name:
 						# we cannot create the @everyone role; skip it
 						continue
 
-					# find existing role by exact name
-					existing = discord.utils.get(guild.roles, name=role_name)
-					if existing:
-						# Skip updating if role already exists
-						pass
-					else:
-						await guild.create_role(name=role_name, permissions=perms, colour=colour)
-						created += 1
+				# find existing role by exact name
+				existing = discord.utils.get(guild.roles, name=role_name)
+				if existing:
+					# Update permissions and color for existing role
+					#await existing.edit(permissions=perms, colour=colour)
+					updated += 1
+				else:
+					await guild.create_role(name=role_name, permissions=perms, colour=colour)
+					created += 1
 
-			except Exception:
+			except Exception as e:
+				print(f"Error recreating role `{role_name}`: {e}")
 				errors += 1
 
 		await ctx.send(f"Roles recreated: created={created}, updated={updated}, errors={errors}.")
