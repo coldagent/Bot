@@ -209,28 +209,54 @@ class ServerSaver(commands.Cog):
 
 		await ctx.send(f"Roles recreated: created={created}, updated={updated}, errors={errors}.")
 
-		# Now assign roles to users based on saved role assignments
+	@commands.hybrid_command(name="assign_roles")
+	@owner_only
+	async def assign_roles(self, ctx: commands.Context, source_server: str, user: discord.Member = None):
+		"""Assign roles to users from a saved server.
+
+		If a user is specified via @mention, assign only to that user.
+		Otherwise, assign to all members of the current guild based on saved role data.
+		"""
+		guild = ctx.guild
+		if guild is None:
+			await ctx.send("This command must be used inside a guild.")
+			return
+
 		users_dir = Path("files") / "servers" / _sanitize_name(source_server) / "users"
 		if not users_dir.exists():
-			await ctx.send("No saved users found to reassign roles.")
+			await ctx.send(f"No saved users found for server `{source_server}` at `{users_dir}`.")
 			return
 
 		users_updated = 0
 		users_errors = 0
-		for uf in users_dir.glob("*.csv"):
+
+		if user:
+			# Assign roles to a specific user
+			target_users = [user]
+		else:
+			# Assign roles to all members
+			target_users = guild.members
+
+		for member in target_users:
 			try:
+				# Find the saved file for this user
+				uf = None
+				for csv_file in users_dir.glob("*.csv"):
+					with csv_file.open("r", encoding="utf-8") as fh:
+						lines = [l.rstrip("\n") for l in fh.readlines()]
+						if lines and int(lines[0]) == member.id:
+							uf = csv_file
+							break
+
+				if not uf:
+					users_errors += 1
+					continue
+
 				with uf.open("r", encoding="utf-8") as fh:
 					lines = [l.rstrip("\n") for l in fh.readlines()]
 					if not lines:
 						continue
-					user_id = int(lines[0])
 					saved_roles_line = lines[1] if len(lines) > 1 else ""
-
-					# Find the member in the current guild by ID
-					member = guild.get_member(user_id)
-					if not member:
-						users_errors += 1
-						continue
 
 					# Parse saved role names
 					saved_role_names = [r.strip() for r in (saved_roles_line.split(",") if saved_roles_line else []) if r.strip()]
@@ -242,16 +268,19 @@ class ServerSaver(commands.Cog):
 						if role:
 							roles_to_assign.append(role)
 
-					# Assign all roles to the member
-					if roles_to_assign:
-						await member.add_roles(*roles_to_assign)
+				# Assign all roles to the member
+				if roles_to_assign:
+					await member.add_roles(*roles_to_assign)
 
-					users_updated += 1
+				users_updated += 1
 
 			except Exception:
 				users_errors += 1
 
-		await ctx.send(f"Roles reassigned to users: updated={users_updated}, errors={users_errors}.")
+		if user:
+			await ctx.send(f"Assigned roles to {user.mention}: updated={users_updated}, errors={users_errors}.")
+		else:
+			await ctx.send(f"Roles assigned to all members: updated={users_updated}, errors={users_errors}.")
 
 	@commands.hybrid_command()
 	@owner_only
