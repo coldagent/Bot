@@ -15,6 +15,7 @@ import os
 import re
 import logging
 from pathlib import Path
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -75,7 +76,7 @@ class ServerWatcher(commands.Cog):
             logger.error(f"Failed to write monitor configuration for {guild.name} (channel {ctx.channel.id}): {e}")
             await ctx.send(f"Could not write monitor configuration: {e}")
 
-    def _get_monitor_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
+    def _get_monitor_channel(self, guild: discord.Guild) -> Optional[discord.TextChannel]:
         """Return the configured monitor channel for `guild`, or None."""
         base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
         channel_file = base / "channel.txt"
