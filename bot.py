@@ -37,11 +37,6 @@ async def setup_hook():
 # Bot event: on ready
 @bot.event
 async def on_ready():
-  try:
-    synced = await bot.tree.sync()
-    logger.info(f"Synced {len(synced)} commands on ready")
-  except Exception as e:
-    logger.error(f"Failed to sync commands on ready: {e}")
   logger.info(f"Bot connected as {bot.user}")
 
 
