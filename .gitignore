@@ -1,4 +1,5 @@
 .venv
+.vscode
 token.txt
 cogs/__pycache__
 __pycache__

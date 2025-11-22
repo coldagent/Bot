@@ -1,7 +1,7 @@
 """Cog: save server users to per-user CSV files.
 
 Usage:
-- Command: `!save_users` (or the bot prefix you use)
+- Command: "`save_users")
 - Output path: `files/servers/<servername>/users/<username>.csv`
 
 Notes:
@@ -11,26 +11,20 @@ Notes:
 import json
 import os
 import re
+import logging
 from pathlib import Path
-from functools import wraps
 
 import discord
 from discord.ext import commands
-import constants
 import asyncio
 
-def owner_only(func):
-	"""Decorator to check if the command invoker's user ID matches my_id."""
-	@wraps(func)
-	async def wrapper(self, ctx: commands.Context, *args, **kwargs):
-		if constants.my_id is None:
-			await ctx.send("Owner ID not configured.")
-			return
-		if ctx.author.id != constants.my_id:
-			await ctx.send("You do not have permission to use this command.")
-			return
-		return await func(self, ctx, *args, **kwargs)
-	return wrapper
+from utils import constants, owner_only
+from utils.logging_setup import setup_logging
+
+# Ensure logging is configured (idempotent)
+setup_logging()
+
+logger = logging.getLogger(__name__)
 
 def _sanitize_name(name: str, max_length: int = 200) -> str:
 	"""Sanitize a string to be a safe filename on most filesystems.
@@ -56,18 +50,25 @@ class ServerSaver(commands.Cog):
 	def __init__(self, bot: commands.Bot):
 		self.bot = bot
 
-	@commands.hybrid_command()
+	@commands.hybrid_command(name="save_users", description="Save each member of the guild to files.")
+	@commands.guild_only()
 	@owner_only
 	async def save_users(self, ctx: commands.Context):
 		"""Save each member of the guild"""
 		guild = ctx.guild
 		if guild is None:
 			await ctx.send("This command must be used in a guild.")
+			logger.warning("save_users called outside of a guild")
 			return
 
 		# Directory path
 		base = Path("files") / "servers" / _sanitize_name(guild.name) / "users"
-		base.mkdir(parents=True, exist_ok=True)
+		try:
+			base.mkdir(parents=True, exist_ok=True)
+		except Exception as e:
+			logger.error(f"Failed to create users directory for {guild.name}: {e}")
+			await ctx.send(f"An error occurred.")
+			return
 
 		saved = 0
 		errors = 0
@@ -86,12 +87,18 @@ class ServerSaver(commands.Cog):
 					fh.write(roles_line + "\n")
 
 				saved += 1
-			except Exception:
+			except Exception as e:
+				logger.error(f"Error saving user {member.id} ({member.name}): {e}")
 				errors += 1
 
 		# Save roles for the guild
 		roles_dir = Path("files") / "servers" / _sanitize_name(guild.name) / "roles"
-		roles_dir.mkdir(parents=True, exist_ok=True)
+		try:
+			roles_dir.mkdir(parents=True, exist_ok=True)
+		except Exception as e:
+			logger.error(f"Failed to create roles directory for {guild.name}: {e}")
+			await ctx.send(f"An error occurred.")
+			return
 
 		roles_saved = 0
 		roles_errors = 0
@@ -107,7 +114,8 @@ class ServerSaver(commands.Cog):
 						perms_line = ",".join([k for k, v in perms.items() if v])
 					else:
 						perms_line = str(getattr(role.permissions, "value", role.permissions))
-				except Exception:
+				except Exception as e:
+					logger.warning(f"Failed to extract permissions for role {role.name}: {e}")
 					perms_line = str(getattr(role.permissions, "value", role.permissions))
 
 				with rfile.open("w", encoding="utf-8", newline="\n") as rf:
@@ -116,19 +124,23 @@ class ServerSaver(commands.Cog):
 					# Line 2: role color in hex (e.g. #a1b2c3)
 					try:
 						color_hex = f"#{role.color.value:06x}"
-					except Exception:
+					except Exception as e:
+						logger.warning(f"Failed to extract color for role {role.name}: {e}")
 						color_hex = "#000000"
 					rf.write(color_hex + "\n")
 					# Line 3: comma-separated enabled permission names
 					rf.write(perms_line + "\n")
 
 				roles_saved += 1
-			except Exception:
+			except Exception as e:
+				logger.error(f"Error saving role {role.name} ({role.id}): {e}")
 				roles_errors += 1
 
+		logger.info(f"Saved {saved} members (errors: {errors}) and {roles_saved} roles (errors: {roles_errors}) for guild {guild.name}")
 		await ctx.send(f"Saved {saved} members to `{base}` (Errors: {errors}). Saved {roles_saved} roles to `{roles_dir}` (Errors: {roles_errors}).")
 
-	@commands.hybrid_command()
+	@commands.hybrid_command(name="recreate_roles", description="Recreate roles in this guild from saved roles for a source server.")
+	@commands.guild_only()
 	@owner_only
 	async def recreate_roles(self, ctx: commands.Context, source_server: str):
 		"""Recreate roles in this guild from saved roles for `source_server`.
@@ -145,17 +157,20 @@ class ServerSaver(commands.Cog):
 		guild = ctx.guild
 		if guild is None:
 			await ctx.send("This command must be used inside a guild.")
+			logger.warning("recreate_roles called outside of a guild")
 			return
 
 		src_dir = Path("files") / "servers" / _sanitize_name(source_server) / "roles"
 		if not src_dir.exists():
 			await ctx.send(f"No saved roles found for server `{source_server}` at `{src_dir}`.")
+			logger.warning(f"recreate_roles: source directory does not exist: {src_dir}")
 			return
 
 		created = 0
 		updated = 0
 		errors = 0
 		for rf in src_dir.glob("*.csv"):
+			role_name = "unknown"
 			try:
 				with rf.open("r", encoding="utf-8") as fh:
 					lines = [l.rstrip("\n") for l in fh.readlines()]
@@ -168,7 +183,8 @@ class ServerSaver(commands.Cog):
 					# parse color
 					try:
 						color_val = int(color_hex.lstrip("#"), 16)
-					except Exception:
+					except Exception as e:
+						logger.warning(f"Invalid color hex '{color_hex}' for role {role_name}: {e}")
 						color_val = 0
 					colour = discord.Colour(color_val)
 
@@ -181,35 +197,44 @@ class ServerSaver(commands.Cog):
 						for pname, enabled in perms_dict.items():
 							if enabled and hasattr(perms, pname):
 								setattr(perms, pname, True)
-					except Exception:
+					except (json.JSONDecodeError, TypeError) as e:
+						logger.debug(f"Permissions not JSON for {role_name}, trying integer: {e}")
 						# If not JSON, try to parse as integer permission value
 						try:
 							perm_int = int(perms_line)
 							perms = discord.Permissions(perm_int)
-						except (ValueError, TypeError):
+						except (ValueError, TypeError) as e:
 							# If all else fails, use no permissions
-							pass					# skip everyone role
-					if role_name == guild.default_role.name:
-						# we cannot create the @everyone role; skip it
-						continue
+							logger.warning(f"Failed to parse permissions for {role_name}: {e}")
+							pass
+
+				# skip everyone role
+				if role_name == guild.default_role.name:
+					# we cannot create the @everyone role; skip it
+					logger.debug(f"Skipping @everyone role for guild {guild.name}")
+					continue
 
 				# find existing role by exact name
 				existing = discord.utils.get(guild.roles, name=role_name)
 				if existing:
 					# Update permissions and color for existing role
-					#await existing.edit(permissions=perms, colour=colour)
+					await existing.edit(permissions=perms, colour=colour)
+					logger.info(f"Updated role {role_name} in guild {guild.name}")
 					updated += 1
 				else:
 					await guild.create_role(name=role_name, permissions=perms, colour=colour)
+					logger.info(f"Created role {role_name} in guild {guild.name}")
 					created += 1
 
 			except Exception as e:
-				print(f"Error recreating role `{role_name}`: {e}")
+				logger.error(f"Error recreating role {role_name} from {rf.name}: {e}")
 				errors += 1
 
+		logger.info(f"recreate_roles completed for {guild.name}: created={created}, updated={updated}, errors={errors}")
 		await ctx.send(f"Roles recreated: created={created}, updated={updated}, errors={errors}.")
 
-	@commands.hybrid_command(name="assign_roles")
+	@commands.hybrid_command(name="assign_roles", description="Assign roles to users from a saved server.")
+	@commands.guild_only()
 	@owner_only
 	async def assign_roles(self, ctx: commands.Context, source_server: str, user: discord.Member = None):
 		"""Assign roles to users from a saved server.
@@ -220,11 +245,13 @@ class ServerSaver(commands.Cog):
 		guild = ctx.guild
 		if guild is None:
 			await ctx.send("This command must be used inside a guild.")
+			logger.warning("assign_roles called outside of a guild")
 			return
 
 		users_dir = Path("files") / "servers" / _sanitize_name(source_server) / "users"
 		if not users_dir.exists():
 			await ctx.send(f"No saved users found for server `{source_server}` at `{users_dir}`.")
+			logger.warning(f"assign_roles: source directory does not exist: {users_dir}")
 			return
 
 		users_updated = 0
@@ -249,6 +276,7 @@ class ServerSaver(commands.Cog):
 							break
 
 				if not uf:
+					logger.debug(f"No saved data for user {member.id} ({member.name})")
 					users_errors += 1
 					continue
 
@@ -267,22 +295,28 @@ class ServerSaver(commands.Cog):
 						role = discord.utils.get(guild.roles, name=role_name)
 						if role:
 							roles_to_assign.append(role)
+						else:
+							logger.debug(f"Role {role_name} not found in guild {guild.name}")
 
 				# Assign all roles to the member
 				if roles_to_assign:
 					await member.add_roles(*roles_to_assign)
+					logger.info(f"Assigned {len(roles_to_assign)} roles to {member.id} ({member.name})")
 
 				users_updated += 1
 
-			except Exception:
+			except Exception as e:
+				logger.error(f"Error assigning roles to {member.id} ({member.name}): {e}")
 				users_errors += 1
 
+		logger.info(f"assign_roles completed for {guild.name}: updated={users_updated}, errors={users_errors}")
 		if user:
 			await ctx.send(f"Assigned roles to {user.mention}: updated={users_updated}, errors={users_errors}.")
 		else:
 			await ctx.send(f"Roles assigned to all members: updated={users_updated}, errors={users_errors}.")
 
-	@commands.hybrid_command()
+	@commands.hybrid_command(name="delete_all_channels", description="Delete all channels in the server.")
+	@commands.guild_only()
 	@owner_only
 	async def delete_all_messages(self, ctx: commands.Context):
 		"""Delete all channels in the server.
@@ -292,32 +326,39 @@ class ServerSaver(commands.Cog):
 		guild = ctx.guild
 		if guild is None:
 			await ctx.send("This command must be used inside a guild.")
+			logger.warning("delete_all_messages called outside of a guild")
 			return
 
 		await ctx.send("Starting deletion of all channels in the server...")
+		logger.info(f"Starting deletion of all channels in guild {guild.name}")
 
 		deleted = 0
 		errors = 0
 		for channel in list(guild.channels):
 			try:
 				await channel.delete()
+				logger.info(f"Deleted channel {channel.name} ({channel.id})")
 				deleted += 1
-			except Exception:
+			except Exception as e:
+				logger.error(f"Error deleting channel {channel.name} ({channel.id}): {e}")
 				errors += 1
-
-		
 
 		# Recreate a default `general` channel and send the summary there
 		try:
 			new_channel = await guild.create_text_channel("general")
-			await new_channel.send(f"Finished! Total channels deleted: {deleted}, errors: {errors}.")
-			await new_channel.send("Created channel: #general")
+			logger.info(f"Created #general channel in guild {guild.name}")
 		except Exception as e:
-			# Log in console if we cannot create the channel
-			print(f"Finished! Total channels deleted: {deleted}, errors: {errors}.")
-			print(f"Could not create #general: {e}")
+			# Fall back to the context channel if we couldn't create #general
+			logger.error(f"Failed to create #general channel in {guild.name}: {e}")
+		else:
+			try:
+				await new_channel.send(f"Finished! Total channels deleted: {deleted}, errors: {errors}.")
+			except Exception as e:
+				# If sending in the new channel fails, send the summary to ctx
+				logger.error(f"Failed to send messages to #general in {guild.name}: {e}")
 
-	@commands.hybrid_command()
+	@commands.hybrid_command(name="kick_all", description="Kick all members from the server except the owner.")
+	@commands.guild_only()
 	@owner_only
 	async def kick_all(self, ctx: commands.Context):
 		"""Kick all members from the server except the owner (constants.my_id).
@@ -327,9 +368,11 @@ class ServerSaver(commands.Cog):
 		guild = ctx.guild
 		if guild is None:
 			await ctx.send("This command must be used inside a guild.")
+			logger.warning("kick_all called outside of a guild")
 			return
 
 		await ctx.send("Starting to kick all members except the owner...")
+		logger.info(f"Starting kick_all in guild {guild.name}")
 
 		kicked = 0
 		skipped = 0
@@ -346,14 +389,17 @@ class ServerSaver(commands.Cog):
 
 			try:
 				await member.kick(reason="Kicked by kick_all command")
+				logger.info(f"Kicked member {member.id} ({member.name}) from {guild.name}")
 				kicked += 1
 			except Exception as e:
-				print(f"Error kicking member {member.id}: {e}")
+				logger.error(f"Error kicking member {member.id} ({member.name}): {e}")
 				errors += 1
 
+		logger.info(f"kick_all completed in {guild.name}: kicked={kicked}, skipped={skipped}, errors={errors}")
 		await ctx.send(f"Kick complete: kicked={kicked}, skipped={skipped}, errors={errors}.")
 
-	@commands.hybrid_command(name="invite_saved_users")
+	@commands.hybrid_command(name="invite_saved_users", description="Invite all users saved for a source server to the current guild.")
+	@commands.guild_only()
 	@owner_only
 	async def invite_saved_users(self, ctx: commands.Context, source_server: str):
 		"""Invite all users saved for `source_server` to the current guild.
@@ -364,11 +410,13 @@ class ServerSaver(commands.Cog):
 		guild = ctx.guild
 		if guild is None:
 			await ctx.send("This command must be used inside a guild.")
+			logger.warning("invite_saved_users called outside of a guild")
 			return
 
 		users_dir = Path("files") / "servers" / _sanitize_name(source_server) / "users"
 		if not users_dir.exists():
 			await ctx.send(f"No saved users found for server `{source_server}` at `{users_dir}`.")
+			logger.warning(f"invite_saved_users: source directory does not exist: {users_dir}")
 			return
 
 		# Find a text channel where we can create an invite
@@ -379,13 +427,16 @@ class ServerSaver(commands.Cog):
 				break
 		if invite_channel is None:
 			await ctx.send("I don't have permission to create invites in any text channel.")
+			logger.error(f"No suitable channel for creating invite in {guild.name}")
 			return
 
 		# Create a permanent invite
 		try:
 			invite = await invite_channel.create_invite(max_uses=0, max_age=0, unique=False)
+			logger.info(f"Created invite for guild {guild.name}: {invite.url}")
 		except Exception as e:
 			await ctx.send(f"Failed to create invite: {e}")
+			logger.error(f"Failed to create invite for {guild.name}: {e}")
 			return
 
 		sent = 0
@@ -400,21 +451,26 @@ class ServerSaver(commands.Cog):
 				# Fetch user object even if they're not in the bot's cache
 				try:
 					user = await self.bot.fetch_user(user_id)
-				except Exception:
+				except Exception as e:
+					logger.debug(f"Could not fetch user {user_id}: {e}")
 					failed += 1
 					continue
 
 				# DM the invite
 				try:
 					await user.send(f"This is coldagent's bot. Our former server owner, Demanchus' account was hacked and The Chocobros server was deleted. You were a member of that server, so you are invited to the new server we are using to replace it.\nYou've been invited to join **{guild.name}**: {invite.url}")
+					logger.info(f"Sent invite DM to user {user.id} ({user.name})")
 					sent += 1
-				except Exception:
+				except Exception as e:
+					logger.warning(f"Could not DM user {user.id} ({user.name}): {e}")
 					failed += 1
 				# small delay to avoid hitting strict rate limits
 				await asyncio.sleep(0.5)
-			except Exception:
+			except Exception as e:
+				logger.error(f"Error processing user file {uf.name}: {e}")
 				failed += 1
 
+		logger.info(f"invite_saved_users completed: sent={sent}, failed={failed}")
 		await ctx.send(f"Invite DM complete: sent={sent}, failed={failed}.")
 
 

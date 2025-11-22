@@ -13,11 +13,17 @@ Notes:
 
 import os
 import re
+import logging
 from pathlib import Path
-from functools import wraps
 
 import discord
 from discord.ext import commands
+from utils.logging_setup import setup_logging
+
+# Ensure logging is configured (idempotent)
+setup_logging()
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_name(name: str, max_length: int = 200) -> str:
@@ -48,17 +54,25 @@ class ServerWatcher(commands.Cog):
         guild = ctx.guild
         if guild is None:
             await ctx.send("This command must be run in a guild channel.")
+            logger.warning("monitor_channel called outside of a guild")
             return
 
-        base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
-        base.mkdir(parents=True, exist_ok=True)
+        try:
+            base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
+            base.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"Failed to create monitor directory for {guild.name}: {e}")
+            await ctx.send(f"An error occured.")
+            return
 
         channel_file = base / "channel.txt"
         try:
             with channel_file.open("w", encoding="utf-8") as fh:
                 fh.write(str(ctx.channel.id) + "\n")
+            logger.info(f"Monitor channel set to {ctx.channel.id} for guild {guild.name}")
             await ctx.send(f"Monitor channel set to {ctx.channel.mention} for guild '{guild.name}'.")
         except Exception as e:
+            logger.error(f"Failed to write monitor configuration for {guild.name} (channel {ctx.channel.id}): {e}")
             await ctx.send(f"Could not write monitor configuration: {e}")
 
     def _get_monitor_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
@@ -66,33 +80,44 @@ class ServerWatcher(commands.Cog):
         base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
         channel_file = base / "channel.txt"
         if not channel_file.exists():
+            logger.debug(f"No monitor configuration found for {guild.name}")
             return None
         try:
             cid = int(channel_file.read_text(encoding="utf-8").strip())
-        except Exception:
+            channel = guild.get_channel(cid) or self.bot.get_channel(cid)
+            if channel is None:
+                logger.warning(f"Monitor channel {cid} not found for {guild.name}")
+            return channel
+        except Exception as e:
+            logger.error(f"Failed to read monitor channel for {guild.name}: {e}")
             return None
-        return guild.get_channel(cid) or self.bot.get_channel(cid)
 
     @commands.Cog.listener(name="on_presence_update")
     async def on_presence_update(self, before: discord.Member, after: discord.Member):
         """Send a message when a user logs in via web client."""
-        # Check if the user's client status changed to web
-        if before.client_status == after.client_status:
-            return
-
-        # Check if web is now active (was not before)
-        web_before = before.client_status.web if before.client_status else None
-        web_after = after.client_status.web if after.client_status else None
-
-        if web_before is None and web_after is not None:
-            # User just logged into web client
-            guild = after.guild
-            chan = self._get_monitor_channel(guild)
-            if chan is None:
+        try:
+            # Check if the user's client status changed to web
+            if before.client_status == after.client_status:
                 return
-            try:
-                await chan.send(f"User {after.mention} ({after.id}) logged in from web.")
-            except Exception:
-                pass
+
+            # Check if web is now active (was not before)
+            web_before = before.client_status.web if before.client_status else None
+            web_after = after.client_status.web if after.client_status else None
+
+            if web_before is None and web_after is not None:
+                # User just logged into web client
+                guild = after.guild
+                logger.debug(f"User {after.id} ({after.name}) logged in from web in {guild.name}")
+                chan = self._get_monitor_channel(guild)
+                if chan is None:
+                    logger.debug(f"No monitor channel configured for {guild.name}")
+                    return
+                try:
+                    await chan.send(f"User {after.name} ({after.id}) logged in from web.")
+                    logger.info(f"Sent web login notification for {after.name} ({after.id}) to {guild.name}")
+                except Exception as e:
+                    logger.error(f"Failed to send web login notification for {after.id} in {guild.name}: {e}")
+        except Exception as e:
+            logger.error(f"Error in on_presence_update for {after.id}: {e}")
 async def setup(bot: commands.Bot):
     await bot.add_cog(ServerWatcher(bot))
