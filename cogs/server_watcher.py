@@ -108,13 +108,13 @@ class ServerWatcher(commands.Cog):
             if web_before is None and web_after is not None:
                 # User just logged into web client
                 guild = after.guild
-                logger.debug(f"User {after.name} [id: {after.id}] logged in from web in {guild.name}")
+                logger.debug(f"User {after.name} [id: {after.id}] logged into Discord from the web in {guild.name}")
                 chan = self._get_monitor_channel(guild)
                 if chan is None:
                     logger.debug(f"No monitor channel configured for {guild.name}")
                     return
                 try:
-                    await chan.send(f"User {after.name} [id: {after.id}] logged in from web.")
+                    await chan.send(f"User {after.name} [id: {after.id}] logged into Discord from the web.")
                     logger.info(f"Sent web login notification for {after.name} ({after.id}) to {guild.name}")
                 except Exception as e:
                     logger.error(f"Failed to send web login notification for {after.id} in {guild.name}: {e}")
