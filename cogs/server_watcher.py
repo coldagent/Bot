@@ -108,7 +108,7 @@ class ServerWatcher(commands.Cog):
             if web_before is None and web_after is not None:
                 # User just logged into web client
                 guild = after.guild
-                logger.debug(f"User {after.id} ({after.name}) logged in from web in {guild.name}")
+                logger.debug(f"User {after.id} [id: {after.name}] logged in from web in {guild.name}")
                 chan = self._get_monitor_channel(guild)
                 if chan is None:
                     logger.debug(f"No monitor channel configured for {guild.name}")
