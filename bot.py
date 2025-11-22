@@ -41,7 +41,7 @@ async def on_ready():
 
 
 # Sync Bot commands
-@bot.hybrid_command()
+@bot.hybrid_command(name="sync", description="Syncs Discord UI with bot slash commands")
 @owner_only
 async def sync(ctx: commands.Context):
   """Syncs Discord UI with bot slash commands"""
