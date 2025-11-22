@@ -1,0 +1,98 @@
+"""Cog: monitor channel per-guild and send automatic messages.
+
+Commands:
+- `monitor_channel` (hybrid): register the current channel as the monitor channel for the guild.
+
+Behavior:
+- Saves the selected channel id to `files/servers/monitors/<servername>/channel.txt`.
+- When a user logs into Discord from the web client, if a monitor channel is configured, send a message there.
+
+Notes:
+- Requires `presences` intent to receive `on_presence_update` events.
+"""
+
+import os
+import re
+from pathlib import Path
+from functools import wraps
+
+import discord
+from discord.ext import commands
+
+
+def _sanitize_name(name: str, max_length: int = 200) -> str:
+    """Sanitize a string to be a safe filename on most filesystems."""
+    name = re.sub(r"[\x00-\x1f\x7f]", "", name)
+    invalid = '<>:"/\\|?*'
+    replace_table = {ord(c): "_" for c in invalid}
+    safe = name.translate(replace_table)
+    safe = safe.replace(os.path.sep, "_").strip()
+    if not safe:
+        safe = "unknown"
+    return safe[:max_length]
+
+
+class ServerWatcher(commands.Cog):
+    """Watch servers and send automatic messages to configured channel."""
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    @commands.hybrid_command(name="monitor_channel", description="Set the current channel as the monitor channel for this guild.")
+    @commands.guild_only()
+    async def monitor_channel(self, ctx: commands.Context):
+        """Register the current channel as the monitor channel for this guild.
+
+        The channel id is saved to `files/servers/monitors/<servername>/channel.txt`.
+        """
+        guild = ctx.guild
+        if guild is None:
+            await ctx.send("This command must be run in a guild channel.")
+            return
+
+        base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
+        base.mkdir(parents=True, exist_ok=True)
+
+        channel_file = base / "channel.txt"
+        try:
+            with channel_file.open("w", encoding="utf-8") as fh:
+                fh.write(str(ctx.channel.id) + "\n")
+            await ctx.send(f"Monitor channel set to {ctx.channel.mention} for guild '{guild.name}'.")
+        except Exception as e:
+            await ctx.send(f"Could not write monitor configuration: {e}")
+
+    def _get_monitor_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
+        """Return the configured monitor channel for `guild`, or None."""
+        base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
+        channel_file = base / "channel.txt"
+        if not channel_file.exists():
+            return None
+        try:
+            cid = int(channel_file.read_text(encoding="utf-8").strip())
+        except Exception:
+            return None
+        return guild.get_channel(cid) or self.bot.get_channel(cid)
+
+    @commands.Cog.listener(name="on_presence_update")
+    async def on_presence_update(self, before: discord.Member, after: discord.Member):
+        """Send a message when a user logs in via web client."""
+        # Check if the user's client status changed to web
+        if before.client_status == after.client_status:
+            return
+
+        # Check if web is now active (was not before)
+        web_before = before.client_status.web if before.client_status else None
+        web_after = after.client_status.web if after.client_status else None
+
+        if web_before is None and web_after is not None:
+            # User just logged into web client
+            guild = after.guild
+            chan = self._get_monitor_channel(guild)
+            if chan is None:
+                return
+            try:
+                await chan.send(f"User {after.mention} ({after.id}) logged in from web.")
+            except Exception:
+                pass
+async def setup(bot: commands.Bot):
+    await bot.add_cog(ServerWatcher(bot))
