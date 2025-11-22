@@ -20,13 +20,16 @@ bot = commands.Bot(command_prefix="`", intents=discord.Intents.all())
 async def setup_hook():
   # Load Cogs
   try:
+    cog_names = ""
     for filename in os.listdir("./cogs"):
       if filename.endswith(".py"):
         try:
           await bot.load_extension(f"cogs.{filename[:-3]}")
-          logger.info(f"Loaded Cog: {filename[:-3]}")
+          cog_names += f"{filename[:-3]}, "
+          
         except Exception as e:
           logger.error(f"Failed to load cog {filename[:-3]}: {e}")
+    logger.info(f"Loaded Cogs: {cog_names[:-2]}")
   except Exception as e:
     logger.error(f"Error loading cogs: {e}")
 

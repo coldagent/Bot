@@ -34,20 +34,17 @@ def setup_logging(level: int = logging.INFO) -> None:
             record.asctime = self.formatTime(record, self.datefmt)
             record.asctime = f"\033[1;90m{record.asctime}\033[0m"
 
-            # Bold the levelname (color will be applied via %(log_color)s prefix)
-            record.levelname = f"\033[1m{record.levelname}\033[0m"
-
             # Color the logger name pink (magenta)
             record.name = f"\033[95m{record.name}\033[0m"
 
             return super().format(record)
 
     formatter = CustomColoredFormatter(
-        fmt="%(asctime)s %(log_color)s%(levelname)-8s%(reset)s %(name)s %(message)s",
+        fmt="%(asctime)s %(log_color)s%(levelname)-8s%(reset)s%(name)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         log_colors={
-            "DEBUG": "cyan",
-            "INFO": "green",
+            "DEBUG": "green",
+            "INFO": "blue",
             "WARNING": "yellow",
             "ERROR": "red",
             "CRITICAL": "red,bg_white",
@@ -62,14 +59,6 @@ def setup_logging(level: int = logging.INFO) -> None:
     root.setLevel(level)
     root.addHandler(console_handler)
 
-    # Configure discord loggers: attach handler and prevent propagation to root
-    discord_logger = logging.getLogger("discord")
-    discord_logger.setLevel(level)
-    discord_logger.propagate = False
-    # avoid adding duplicate handlers
-    if not any(isinstance(h, type(console_handler)) for h in discord_logger.handlers):
-        discord_logger.addHandler(console_handler)
-
     # Reduce very noisy sub-loggers
-    logging.getLogger("discord.http").setLevel(logging.WARNING)
-    logging.getLogger("discord.gateway").setLevel(logging.INFO)
+    logging.getLogger("discord.client").setLevel(logging.ERROR)
+    logging.getLogger("discord.gateway").setLevel(logging.ERROR)
