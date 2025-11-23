@@ -12,22 +12,21 @@ import colorama
 
 
 def setup_logging(level: int = logging.INFO) -> None:
-    """Configure colored logging for console and make it idempotent.
+    """Configure colored logging for console.
 
-    - Initializes `colorama` for Windows support
-    - Clears existing handlers on the root logger
-    - Adds a single StreamHandler with colorized formatter
-    - Attaches the same handler to `discord` logger and disables propagation
+    - Clears existing handlers on the root logger.
+    - Adds a single StreamHandler to the root logger.
+    - Prevents log propagation from known verbose/duplicating libraries.
     """
     # Make idempotent: remove any existing handlers from the root logger
     root = logging.getLogger()
     for h in list(root.handlers):
         root.removeHandler(h)
 
-    # Initialize colorama (Windows)
+    # Initialize colorama (Windows) - keep this for cross-platform color support
     colorama.init()
 
-    # Custom formatter: bold timestamp, bold levelname (color applied via %(log_color)s), pink logger name
+    # Custom formatter class (as you defined it)
     class CustomColoredFormatter(colorlog.ColoredFormatter):
         def format(self, record: logging.LogRecord) -> str:
             # Ensure asctime exists and wrap it in gray + bold
@@ -40,7 +39,7 @@ def setup_logging(level: int = logging.INFO) -> None:
             return super().format(record)
 
     formatter = CustomColoredFormatter(
-        fmt="%(asctime)s %(log_color)s%(levelname)-8s%(reset)s%(name)s %(message)s",
+        fmt="%(asctime)s %(log_color)s%(levelname)-8s%(reset)s %(name)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         log_colors={
             "DEBUG": "green",
@@ -51,14 +50,22 @@ def setup_logging(level: int = logging.INFO) -> None:
         },
     )
 
-    # Console handler
+    # Console handler (defined once)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    # Configure root logger
+    # Configure root logger (The SINGLE point of output)
     root.setLevel(level)
     root.addHandler(console_handler)
 
-    # Reduce very noisy sub-loggers
-    logging.getLogger("discord.client").setLevel(logging.ERROR)
-    logging.getLogger("discord.gateway").setLevel(logging.ERROR)
+    logging.getLogger("discord").propagate = False
+    logging.getLogger("discord").setLevel(logging.INFO) # Set the minimum level you want to see
+    
+    logging.getLogger("websockets").propagate = False
+    logging.getLogger("websockets").setLevel(logging.WARNING)
+
+    logging.getLogger("asyncio").propagate = False
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+
+    logging.getLogger("urllib3").propagate = False
+    logging.getLogger("urllib3").setLevel(logging.WARNING)

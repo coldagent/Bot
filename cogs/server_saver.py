@@ -18,7 +18,7 @@ import discord
 from discord.ext import commands
 import asyncio
 
-from utils import constants, owner_only
+from utils import constants, owner_only_cog
 from utils.logging_setup import setup_logging
 
 # Ensure logging is configured (idempotent)
@@ -52,7 +52,7 @@ class ServerSaver(commands.Cog):
 
 	@commands.hybrid_command(name="save_users", description="Save each member of the guild to files.")
 	@commands.guild_only()
-	@owner_only
+	@owner_only_cog
 	async def save_users(self, ctx: commands.Context):
 		"""Save each member of the guild"""
 		guild = ctx.guild
@@ -141,7 +141,7 @@ class ServerSaver(commands.Cog):
 
 	@commands.hybrid_command(name="recreate_roles", description="Recreate roles in this guild from saved roles for a source server.")
 	@commands.guild_only()
-	@owner_only
+	@owner_only_cog
 	async def recreate_roles(self, ctx: commands.Context, source_server: str):
 		"""Recreate roles in this guild from saved roles for `source_server`.
 
@@ -235,7 +235,7 @@ class ServerSaver(commands.Cog):
 
 	@commands.hybrid_command(name="assign_roles", description="Assign roles to users from a saved server.")
 	@commands.guild_only()
-	@owner_only
+	@owner_only_cog
 	async def assign_roles(self, ctx: commands.Context, source_server: str, user: discord.Member = None):
 		"""Assign roles to users from a saved server.
 
@@ -317,7 +317,7 @@ class ServerSaver(commands.Cog):
 
 	@commands.hybrid_command(name="delete_all_channels", description="Delete all channels in the server.")
 	@commands.guild_only()
-	@owner_only
+	@owner_only_cog
 	async def delete_all_messages(self, ctx: commands.Context):
 		"""Delete all channels in the server.
 
@@ -359,7 +359,7 @@ class ServerSaver(commands.Cog):
 
 	@commands.hybrid_command(name="kick_all", description="Kick all members from the server except the owner.")
 	@commands.guild_only()
-	@owner_only
+	@owner_only_cog
 	async def kick_all(self, ctx: commands.Context):
 		"""Kick all members from the server except the owner (constants.my_id).
 
@@ -400,7 +400,7 @@ class ServerSaver(commands.Cog):
 
 	@commands.hybrid_command(name="invite_saved_users", description="Invite all users saved for a source server to the current guild.")
 	@commands.guild_only()
-	@owner_only
+	@owner_only_cog
 	async def invite_saved_users(self, ctx: commands.Context, source_server: str):
 		"""Invite all users saved for `source_server` to the current guild.
 
