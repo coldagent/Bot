@@ -20,6 +20,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 from utils.logging_setup import setup_logging
+from utils.slash_response import send_initial_response, edit_response
 
 # Ensure logging is configured (idempotent)
 setup_logging()
@@ -58,23 +59,27 @@ class ServerWatcher(commands.Cog):
             logger.warning("monitor_channel called outside of a guild")
             return
 
+        # Send initial response
+        sent_msg = await send_initial_response(ctx)
+
         try:
             base = Path("files") / "servers" / _sanitize_name(guild.name) / "monitors"
             base.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             logger.error(f"Failed to create monitor directory for {guild.name}: {e}")
-            await ctx.send(f"An error occured.")
+            await edit_response(sent_msg, "An error occurred.", fallback_ctx=ctx)
             return
 
         channel_file = base / "channel.txt"
         try:
             with channel_file.open("w", encoding="utf-8") as fh:
                 fh.write(str(ctx.channel.id) + "\n")
-            logger.info(f"Monitor channel set to {ctx.channel.id} for guild {guild.name}")
-            await ctx.send(f"Monitor channel set to {ctx.channel.mention} for guild '{guild.name}'.")
+            logger.info(f"Monitor channel set to {ctx.channel.name} (id: {ctx.channel.id}) for guild {guild.name}")
+            result = f"Monitor channel set to {ctx.channel.mention} for guild '{guild.name}'."
+            await edit_response(sent_msg, result, fallback_ctx=ctx)
         except Exception as e:
-            logger.error(f"Failed to write monitor configuration for {guild.name} (channel {ctx.channel.id}): {e}")
-            await ctx.send(f"Could not write monitor configuration: {e}")
+            logger.error(f"Failed to write monitor configuration for {guild.name} channel {ctx.channel.name} (id: {ctx.channel.id}: {e}")
+            await edit_response(sent_msg, f"Could not write monitor configuration: {e}", fallback_ctx=ctx)
 
     def _get_monitor_channel(self, guild: discord.Guild) -> Optional[discord.TextChannel]:
         """Return the configured monitor channel for `guild`, or None."""

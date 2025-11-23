@@ -20,6 +20,7 @@ import asyncio
 
 from utils import constants, owner_only_cog
 from utils.logging_setup import setup_logging
+from utils.slash_response import send_initial_response, edit_response
 
 # Ensure logging is configured (idempotent)
 setup_logging()
@@ -61,13 +62,16 @@ class ServerSaver(commands.Cog):
 			logger.warning("save_users called outside of a guild")
 			return
 
+		# Send initial response
+		sent_msg = await send_initial_response(ctx)
+
 		# Directory path
 		base = Path("files") / "servers" / _sanitize_name(guild.name) / "users"
 		try:
 			base.mkdir(parents=True, exist_ok=True)
 		except Exception as e:
 			logger.error(f"Failed to create users directory for {guild.name}: {e}")
-			await ctx.send(f"An error occurred.")
+			await edit_response(sent_msg, "An error occurred.", fallback_ctx=ctx)
 			return
 
 		saved = 0
@@ -97,7 +101,7 @@ class ServerSaver(commands.Cog):
 			roles_dir.mkdir(parents=True, exist_ok=True)
 		except Exception as e:
 			logger.error(f"Failed to create roles directory for {guild.name}: {e}")
-			await ctx.send(f"An error occurred.")
+			await edit_response(sent_msg, "An error occurred.", fallback_ctx=ctx)
 			return
 
 		roles_saved = 0
@@ -137,7 +141,8 @@ class ServerSaver(commands.Cog):
 				roles_errors += 1
 
 		logger.info(f"Saved {saved} members (errors: {errors}) and {roles_saved} roles (errors: {roles_errors}) for guild {guild.name}")
-		await ctx.send(f"Saved {saved} members to `{base}` (Errors: {errors}). Saved {roles_saved} roles to `{roles_dir}` (Errors: {roles_errors}).")
+		result = f"Saved {saved} members to `{base}` (Errors: {errors}). Saved {roles_saved} roles to `{roles_dir}` (Errors: {roles_errors})."
+		await edit_response(sent_msg, result, fallback_ctx=ctx)
 
 	@commands.hybrid_command(name="recreate_roles", description="Recreate roles in this guild from saved roles for a source server.")
 	@commands.guild_only()
@@ -160,9 +165,12 @@ class ServerSaver(commands.Cog):
 			logger.warning("recreate_roles called outside of a guild")
 			return
 
+		# Send initial response
+		sent_msg = await send_initial_response(ctx)
+
 		src_dir = Path("files") / "servers" / _sanitize_name(source_server) / "roles"
 		if not src_dir.exists():
-			await ctx.send(f"No saved roles found for server `{source_server}` at `{src_dir}`.")
+			await edit_response(sent_msg, f"No saved roles found for server `{source_server}` at `{src_dir}`.", fallback_ctx=ctx)
 			logger.warning(f"recreate_roles: source directory does not exist: {src_dir}")
 			return
 
@@ -231,7 +239,8 @@ class ServerSaver(commands.Cog):
 				errors += 1
 
 		logger.info(f"recreate_roles completed for {guild.name}: created={created}, updated={updated}, errors={errors}")
-		await ctx.send(f"Roles recreated: created={created}, updated={updated}, errors={errors}.")
+		result = f"Roles recreated: created={created}, updated={updated}, errors={errors}."
+		await edit_response(sent_msg, result, fallback_ctx=ctx)
 
 	@commands.hybrid_command(name="assign_roles", description="Assign roles to users from a saved server.")
 	@commands.guild_only()
@@ -248,9 +257,12 @@ class ServerSaver(commands.Cog):
 			logger.warning("assign_roles called outside of a guild")
 			return
 
+		# Send initial response
+		sent_msg = await send_initial_response(ctx)
+
 		users_dir = Path("files") / "servers" / _sanitize_name(source_server) / "users"
 		if not users_dir.exists():
-			await ctx.send(f"No saved users found for server `{source_server}` at `{users_dir}`.")
+			await edit_response(sent_msg, f"No saved users found for server `{source_server}` at `{users_dir}`.", fallback_ctx=ctx)
 			logger.warning(f"assign_roles: source directory does not exist: {users_dir}")
 			return
 
@@ -311,9 +323,10 @@ class ServerSaver(commands.Cog):
 
 		logger.info(f"assign_roles completed for {guild.name}: updated={users_updated}, errors={users_errors}")
 		if user:
-			await ctx.send(f"Assigned roles to {user.mention}: updated={users_updated}, errors={users_errors}.")
+			result = f"Assigned roles to {user.mention}: updated={users_updated}, errors={users_errors}."
 		else:
-			await ctx.send(f"Roles assigned to all members: updated={users_updated}, errors={users_errors}.")
+			result = f"Roles assigned to all members: updated={users_updated}, errors={users_errors}."
+		await edit_response(sent_msg, result, fallback_ctx=ctx)
 
 	@commands.hybrid_command(name="delete_all_channels", description="Delete all channels in the server.")
 	@commands.guild_only()
@@ -329,7 +342,9 @@ class ServerSaver(commands.Cog):
 			logger.warning("delete_all_messages called outside of a guild")
 			return
 
-		await ctx.send("Starting deletion of all channels in the server...")
+		# Send initial response
+		sent_msg = await send_initial_response(ctx)
+
 		logger.info(f"Starting deletion of all channels in guild {guild.name}")
 
 		deleted = 0
@@ -347,15 +362,13 @@ class ServerSaver(commands.Cog):
 		try:
 			new_channel = await guild.create_text_channel("general")
 			logger.info(f"Created #general channel in guild {guild.name}")
+			result = f"Finished! Total channels deleted: {deleted}, errors: {errors}."
+			await new_channel.send(result)
 		except Exception as e:
-			# Fall back to the context channel if we couldn't create #general
+			# Fall back to editing the sent message or sending a new one
 			logger.error(f"Failed to create #general channel in {guild.name}: {e}")
-		else:
-			try:
-				await new_channel.send(f"Finished! Total channels deleted: {deleted}, errors: {errors}.")
-			except Exception as e:
-				# If sending in the new channel fails, send the summary to ctx
-				logger.error(f"Failed to send messages to #general in {guild.name}: {e}")
+			result = f"Finished! Total channels deleted: {deleted}, errors: {errors}. (Note: Could not create #general)"
+			await edit_response(sent_msg, result, fallback_ctx=ctx)
 
 	@commands.hybrid_command(name="kick_all", description="Kick all members from the server except the owner.")
 	@commands.guild_only()
@@ -371,7 +384,9 @@ class ServerSaver(commands.Cog):
 			logger.warning("kick_all called outside of a guild")
 			return
 
-		await ctx.send("Starting to kick all members except the owner...")
+		# Send initial response
+		sent_msg = await send_initial_response(ctx)
+
 		logger.info(f"Starting kick_all in guild {guild.name}")
 
 		kicked = 0
@@ -396,7 +411,8 @@ class ServerSaver(commands.Cog):
 				errors += 1
 
 		logger.info(f"kick_all completed in {guild.name}: kicked={kicked}, skipped={skipped}, errors={errors}")
-		await ctx.send(f"Kick complete: kicked={kicked}, skipped={skipped}, errors={errors}.")
+		result = f"Kick complete: kicked={kicked}, skipped={skipped}, errors={errors}."
+		await edit_response(sent_msg, result, fallback_ctx=ctx)
 
 	@commands.hybrid_command(name="invite_saved_users", description="Invite all users saved for a source server to the current guild.")
 	@commands.guild_only()
@@ -413,9 +429,12 @@ class ServerSaver(commands.Cog):
 			logger.warning("invite_saved_users called outside of a guild")
 			return
 
+		# Send initial response
+		sent_msg = await send_initial_response(ctx)
+
 		users_dir = Path("files") / "servers" / _sanitize_name(source_server) / "users"
 		if not users_dir.exists():
-			await ctx.send(f"No saved users found for server `{source_server}` at `{users_dir}`.")
+			await edit_response(sent_msg, f"No saved users found for server `{source_server}` at `{users_dir}`.", fallback_ctx=ctx)
 			logger.warning(f"invite_saved_users: source directory does not exist: {users_dir}")
 			return
 
@@ -426,7 +445,7 @@ class ServerSaver(commands.Cog):
 				invite_channel = ch
 				break
 		if invite_channel is None:
-			await ctx.send("I don't have permission to create invites in any text channel.")
+			await edit_response(sent_msg, "I don't have permission to create invites in any text channel.", fallback_ctx=ctx)
 			logger.error(f"No suitable channel for creating invite in {guild.name}")
 			return
 
@@ -435,7 +454,7 @@ class ServerSaver(commands.Cog):
 			invite = await invite_channel.create_invite(max_uses=0, max_age=0, unique=False)
 			logger.info(f"Created invite for guild {guild.name}: {invite.url}")
 		except Exception as e:
-			await ctx.send(f"Failed to create invite: {e}")
+			await edit_response(sent_msg, f"Failed to create invite: {e}", fallback_ctx=ctx)
 			logger.error(f"Failed to create invite for {guild.name}: {e}")
 			return
 
@@ -471,7 +490,8 @@ class ServerSaver(commands.Cog):
 				failed += 1
 
 		logger.info(f"invite_saved_users completed: sent={sent}, failed={failed}")
-		await ctx.send(f"Invite DM complete: sent={sent}, failed={failed}.")
+		result = f"Invite DM complete: sent={sent}, failed={failed}."
+		await edit_response(sent_msg, result, fallback_ctx=ctx)
 
 
 async def setup(bot: commands.Bot):
